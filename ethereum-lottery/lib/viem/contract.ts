@@ -23,6 +23,7 @@ export interface LotteryWinner {
  * Get the current lottery balance
  * @returns The balance of the lottery contract in wei as a bigint, or null if an error occurs
  */
+
 export async function getLotteryBalance(): Promise<bigint | null> {
   try {
     const contract = getContract({

@@ -12,7 +12,7 @@ import { createWalletClient, custom, getContract } from "viem";
 import { lotteryContractAbi, lotteryContractAddress } from "@/lib/viem/abi";
 
 export default function Home() {
-  const [connected, setConnected] = useState(false)
+  const [eventLog, setEventLog] = useState<any>({})
   const [lotteryPlayers, setLotteryPlayers] = useState<`0x${string}`[]>([])
   const [lotteryPot, setLotteryPot] = useState("0")
   const [lotteryHistory, setLotteryHistory] = useState<LotteryWinner[]>([])
@@ -28,11 +28,12 @@ export default function Home() {
   // Mock data for preview
   useEffect(() => {
     
-
+console.log("Wallet Address:", walletAddress);
     const fetchLotteryData = async () => {
-    if (walletAddress) {
+  
 
       const pot = await getLotteryBalance();
+      console.log("Lottery Pot:", pot);
       const players = await getLotteryPlayers();
       const history = await getLotteryHistory();
       const id = await getCurrentLotteryId();
@@ -40,9 +41,9 @@ export default function Home() {
       setLotteryPot(pot ? (Number(pot) / 1e18).toFixed(2) : "0");
       setLotteryPlayers(players || []);
       setLotteryHistory(history || []);
-    }}
+    }
     fetchLotteryData()
-  }, [])
+  }, [eventLog])
 
   
 
@@ -82,12 +83,24 @@ export default function Home() {
       address: lotteryContractAddress,
       abi: lotteryContractAbi,
       client,
+    
       
   });
 
-  await contract.write.enter();
+  const [account] = await client.getAddresses()
 
-    } catch (error) {
+  await client.writeContract({
+  address: lotteryContractAddress,
+  abi: lotteryContractAbi,
+  functionName: 'enter',
+  args: [],
+  value: BigInt(0.1 * 1e18), 
+  chain: flareTestnet,
+  account,
+})
+
+   
+} catch (error) {
       console.error("Failed to update blockchain:", error);
   }
   }
@@ -134,21 +147,79 @@ export default function Home() {
 
   await contract.write._setNewSecretNumber();
 
+  await contract.watchEvent.EventListener(
+    {
+     onLogs: (logs) =>  setEventLog(logs),
+    }
+  );
+
     } catch (error) {
       console.error("Failed to update blockchain:", error);
   }
   }
 
-  const payWinnerHandler = () => {
-    setSuccessMsg("Winner has been paid!")
-    setTimeout(() => setSuccessMsg(""), 3000)
-  }
+  useEffect(() => {
+    const setupEventListener = async () => {
+      try {
+        if (!wallets || wallets.length === 0) {
+          console.error("No wallet connected");
+          return;
+        }
+        const wallet = wallets[0];
+        if (!wallet) {
+          console.error("Wallet is undefined");
+          return;
+        }
+
+        const provider = await wallet.getEthereumProvider();
+        if (!provider) {
+          console.error("Provider is undefined");
+          return;
+        }
+
+        const client = createWalletClient({
+          chain: flareTestnet,
+          transport: custom(provider),
+          account: walletAddress as `0x${string}`,
+        });
+
+        const contract = getContract({
+          address: lotteryContractAddress,
+          abi: lotteryContractAbi,
+          client,
+        });
+
+        contract.watchEvent.LotteryEntered({
+          onLogs: (logs) => setEventLog(logs),
+        });
+
+
+        contract.watchEvent.WinnerSelected({
+          onLogs: (logs) => setEventLog(logs),
+        });
+
+
+        contract.watchEvent.NewLotteryStarted({
+          onLogs: (logs) => setEventLog(logs),
+        });
+
+
+        contract.watchEvent.BalanceWithdrawn({
+          onLogs: (logs) => setEventLog(logs),
+        });
+      } catch (error) {
+        console.error("Failed to set up event listener:", error);
+      }
+    };
+
+    setupEventListener();
+  }, [eventLog, wallets, walletAddress]);
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-white">
             Ether Lottery
           </h1>
           <Button
