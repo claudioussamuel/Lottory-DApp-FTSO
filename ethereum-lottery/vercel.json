@@ -1,7 +1,5 @@
 {
     "version": 2,
-    "buildCommand": "cd ethereum-lottery && npm run build",
-    "outputDirectory": "ethereum-lottery/.next",
     "rewrites": [
       { "source": "/(.*)", "destination": "/" }
     ]
