@@ -2,51 +2,141 @@
 
 import { useState, useEffect } from "react"
 import { ExternalLink } from "lucide-react"
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getCurrentLotteryId, getLotteryBalance, getLotteryHistory, getLotteryPlayers, LotteryWinner } from "@/lib/viem/contract";
+import { flareTestnet } from "viem/chains";
+import { createWalletClient, custom, getContract } from "viem";
+import { lotteryContractAbi, lotteryContractAddress } from "@/lib/viem/abi";
 
 export default function Home() {
   const [connected, setConnected] = useState(false)
-  const [lotteryPlayers, setLotteryPlayers] = useState([])
+  const [lotteryPlayers, setLotteryPlayers] = useState<`0x${string}`[]>([])
   const [lotteryPot, setLotteryPot] = useState("0")
-  const [lotteryHistory, setLotteryHistory] = useState([])
+  const [lotteryHistory, setLotteryHistory] = useState<LotteryWinner[]>([])
   const [lotteryId, setLotteryId] = useState(1)
   const [error, setError] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
   const {login, authenticated,user,logout,} = usePrivy()
   const walletAddress = user?.wallet?.address;
+  const { wallets} = useWallets();
 
-  const [showToggle, setShowToggle] = useState(false)
-
-  function handleToggleShow(){
-    setShowToggle((prev)=>!prev)
-  }
 
 
   // Mock data for preview
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      // setLotteryPlayers(["0x71C7656EC7ab88b098defB751B7401B5f6d8976F", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"])
-      // setLotteryHistory([
-      //   { id: 0, address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F" },
-      //   { id: -1, address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" },
-      // ])
-      setLotteryPot("0.123")
-    }
+    
+
+    const fetchLotteryData = async () => {
+    if (walletAddress) {
+
+      const pot = await getLotteryBalance();
+      const players = await getLotteryPlayers();
+      const history = await getLotteryHistory();
+      const id = await getCurrentLotteryId();
+      setLotteryId(id || 1);
+      setLotteryPot(pot ? (Number(pot) / 1e18).toFixed(2) : "0");
+      setLotteryPlayers(players || []);
+      setLotteryHistory(history || []);
+    }}
+    fetchLotteryData()
   }, [])
 
   
 
-  const enterLotteryHandler = () => {
-    setSuccessMsg("You have entered the lottery!")
-    setTimeout(() => setSuccessMsg(""), 3000)
+  const enterLotteryHandler = async () => {
+    try {
+      if (!wallets || wallets.length === 0) {
+        console.error("No wallet connected");
+        return;
+    }
+    const wallet = wallets[0];
+    if (!wallet) {
+        console.error("Wallet is undefined");
+        return;
+    }
+
+    const provider = await wallet.getEthereumProvider();
+    if (!provider) {
+        console.error("Provider is undefined");
+        return;
+    }
+
+    const currentChainId = await provider.request({ method: "eth_chainId" });
+
+    if (currentChainId !== `0x${flareTestnet.id.toString(16)}`) {
+        await wallet.switchChain(flareTestnet.id);
+    }
+    const client = createWalletClient({
+      chain: flareTestnet,
+      transport: custom(provider),
+      account: walletAddress as `0x${string}`
+      ,
+
+  });
+
+
+  const contract = getContract({
+      address: lotteryContractAddress,
+      abi: lotteryContractAbi,
+      client,
+      
+  });
+
+  await contract.write.enter();
+
+    } catch (error) {
+      console.error("Failed to update blockchain:", error);
+  }
   }
 
-  const pickWinnerHandler = () => {
-    setSuccessMsg("Winner has been picked!")
-    setTimeout(() => setSuccessMsg(""), 3000)
+  const pickWinnerHandler = async () => {
+    try {
+      if (!wallets || wallets.length === 0) {
+        console.error("No wallet connected");
+        return;
+    }
+    const wallet = wallets[0];
+    if (!wallet) {
+        console.error("Wallet is undefined");
+        return;
+    }
+
+    const provider = await wallet.getEthereumProvider();
+    if (!provider) {
+        console.error("Provider is undefined");
+        return;
+    }
+
+    const currentChainId = await provider.request({ method: "eth_chainId" });
+
+    if (currentChainId !== `0x${flareTestnet.id.toString(16)}`) {
+        await wallet.switchChain(flareTestnet.id);
+    }
+    const client = createWalletClient({
+      chain: flareTestnet,
+      transport: custom(provider),
+      account: walletAddress as `0x${string}`
+      ,
+
+  });
+
+
+  const contract = getContract({
+      address: lotteryContractAddress,
+      abi: lotteryContractAbi,
+      client,
+      
+  });
+
+
+  await contract.write._setNewSecretNumber();
+
+    } catch (error) {
+      console.error("Failed to update blockchain:", error);
+  }
   }
 
   const payWinnerHandler = () => {
@@ -103,7 +193,7 @@ export default function Home() {
                     <p className="text-muted-foreground mb-2">
                       <span className="font-semibold">Admin only:</span> Pay winner
                     </p>
-                    <Button onClick={payWinnerHandler} variant="outline" className="w-full sm:w-auto">
+                    <Button onClick={pickWinnerHandler} variant="outline" className="w-full sm:w-auto">
                       Pay Winner
                     </Button>
                   </div>
@@ -175,17 +265,17 @@ export default function Home() {
                   ) : (
                     <div className="space-y-4">
                       {lotteryHistory.map((item) => {
-                        if (lotteryId !== item) {
+                        if (lotteryId !== item.lotteryId) {
                           return (
-                            <div key={"item.id"} className="border-b pb-3 last:border-0">
-                              <p className="font-medium">Lottery #{"item.id"} winner:</p>
+                            <div key={item.lotteryId} className="border-b pb-3 last:border-0">
+                              <p className="font-medium">Lottery #{item.lotteryId} winner:</p>
                               <a
-                                // href={`https://etherscan.io/address/${item.address}`}
+                                 href={`https://etherscan.io/address/${item.winnerAddress}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm truncate flex items-center"
                               >
-                                <span className="truncate">{"item.address"}</span>
+                                <span className="truncate">{item.winnerAddress}</span>
                                 <ExternalLink className="ml-1 h-3 w-3 inline flex-shrink-0" />
                               </a>
                             </div>

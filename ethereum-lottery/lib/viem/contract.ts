@@ -14,7 +14,7 @@ interface Player {
 /**
  * Interface for lottery history data
  */
-interface LotteryWinner {
+export interface LotteryWinner {
   lotteryId: number;
   winnerAddress: `0x${string}`;
 }
