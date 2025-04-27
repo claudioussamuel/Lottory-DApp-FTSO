@@ -12,7 +12,7 @@ import { createWalletClient, custom, getContract } from "viem";
 import { lotteryContractAbi, lotteryContractAddress } from "@/lib/viem/abi";
 
 export default function Home() {
-  const [eventLog, setEventLog] = useState<any>({})
+  const [eventLog, setEventLog] = useState<any>()
   const [lotteryPlayers, setLotteryPlayers] = useState<`0x${string}`[]>([])
   const [lotteryPot, setLotteryPot] = useState("0")
   const [lotteryHistory, setLotteryHistory] = useState<LotteryWinner[]>([])
@@ -89,7 +89,7 @@ console.log("Wallet Address:", walletAddress);
 
   const [account] = await client.getAddresses()
 
-  await client.writeContract({
+ const tx = await client.writeContract({
   address: lotteryContractAddress,
   abi: lotteryContractAbi,
   functionName: 'enter',
@@ -98,6 +98,8 @@ console.log("Wallet Address:", walletAddress);
   chain: flareTestnet,
   account,
 })
+
+setEventLog(tx);
 
    
 } catch (error) {
@@ -145,75 +147,14 @@ console.log("Wallet Address:", walletAddress);
   });
 
 
-  await contract.write._setNewSecretNumber();
+ const tx = await contract.write._setNewSecretNumber();
 
-  await contract.watchEvent.EventListener(
-    {
-     onLogs: (logs) =>  setEventLog(logs),
-    }
-  );
-
+  setEventLog(tx);
     } catch (error) {
       console.error("Failed to update blockchain:", error);
   }
-  }
-
-  useEffect(() => {
-    const setupEventListener = async () => {
-      try {
-        if (!wallets || wallets.length === 0) {
-          console.error("No wallet connected");
-          return;
-        }
-        const wallet = wallets[0];
-        if (!wallet) {
-          console.error("Wallet is undefined");
-          return;
-        }
-
-        const provider = await wallet.getEthereumProvider();
-        if (!provider) {
-          console.error("Provider is undefined");
-          return;
-        }
-
-        const client = createWalletClient({
-          chain: flareTestnet,
-          transport: custom(provider),
-          account: walletAddress as `0x${string}`,
-        });
-
-        const contract = getContract({
-          address: lotteryContractAddress,
-          abi: lotteryContractAbi,
-          client,
-        });
-
-        contract.watchEvent.LotteryEntered({
-          onLogs: (logs) => setEventLog(logs),
-        });
-
-
-        contract.watchEvent.WinnerSelected({
-          onLogs: (logs) => setEventLog(logs),
-        });
-
-
-        contract.watchEvent.NewLotteryStarted({
-          onLogs: (logs) => setEventLog(logs),
-        });
-
-
-        contract.watchEvent.BalanceWithdrawn({
-          onLogs: (logs) => setEventLog(logs),
-        });
-      } catch (error) {
-        console.error("Failed to set up event listener:", error);
-      }
-    };
-
-    setupEventListener();
-  }, [eventLog, wallets, walletAddress]);
+  } 
+  
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -310,7 +251,7 @@ console.log("Wallet Address:", walletAddress);
                       lotteryPlayers.map((player, index) => (
                         <li key={`${player}-${index}`} className="truncate">
                           <a
-                            href={`https://etherscan.io/address/${player}`}
+                            href={`https://coston2-explorer.flare.network/address/${player}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center"
