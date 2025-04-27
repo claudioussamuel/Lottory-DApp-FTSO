@@ -4,11 +4,6 @@ import { privateKeyToAccount } from "viem/accounts";
 import { flareTestnet } from "viem/chains";
 
 
-if (!process.env.NEXT_PUBLIC_SEPOLIA_ID) {
-  throw new Error("Missing NEXT_PUBLIC_FLARE_ID in environment variables");
-}
-
-
 const FLARE = `https://coston2-api.flare.network/ext/C/rpc`;
 
 
